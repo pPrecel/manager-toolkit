@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/kyma-project/manager-toolkit/installation/chart/base/resource"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,27 +40,35 @@ func Test_Uninstall(t *testing.T) {
 
 	type args struct {
 		config *Config
+		opts   UninstallOpts
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name            string
+		args            args
+		wantUninstalled bool
+		wantErr         bool
 	}{
 		{
-			name: "empty manifest",
+			name: "uninstall deploy as first",
 			args: args{
+				opts: UninstallOpts{
+					UninstallFirst: resource.IsDeployment,
+				},
 				config: &Config{
+					Ctx:      context.Background(),
+					Log:      log,
 					Cache:    cache,
-					CacheKey: emptyManifestKey,
+					CacheKey: testManifestKey,
 					Cluster: Cluster{
 						Client: fake.NewClientBuilder().
 							WithScheme(scheme.Scheme).
-							WithObjects(&ns).
+							WithObjects(testDeployCR.DeepCopy()).
 							Build(),
 					},
 				},
 			},
-			wantErr: false,
+			wantUninstalled: false,
+			wantErr:         false,
 		},
 		{
 			name: "parse manifest error",
@@ -68,10 +78,11 @@ func Test_Uninstall(t *testing.T) {
 					CacheKey: wrongManifestKey,
 				},
 			},
-			wantErr: true,
+			wantUninstalled: false,
+			wantErr:         true,
 		},
 		{
-			name: "installation error",
+			name: "uninstallation error",
 			args: args{
 				config: &Config{
 					Ctx:      context.Background(),
@@ -81,17 +92,37 @@ func Test_Uninstall(t *testing.T) {
 					Cluster: Cluster{
 						Client: fake.NewClientBuilder().
 							WithScheme(scheme.Scheme).
-							WithObjects(&ns).
+							WithObjects(ns.DeepCopy()).
 							Build(),
 					},
 				},
 			},
-			wantErr: false,
+			wantUninstalled: true,
+			wantErr:         false,
+		},
+		{
+			name: "empty manifest",
+			args: args{
+				config: &Config{
+					Cache:    cache,
+					CacheKey: emptyManifestKey,
+					Cluster: Cluster{
+						Client: fake.NewClientBuilder().
+							WithScheme(scheme.Scheme).
+							WithObjects(ns.DeepCopy()).
+							Build(),
+					},
+				},
+			},
+			wantUninstalled: true,
+			wantErr:         false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := Uninstall(tt.args.config); (err != nil) != tt.wantErr {
+			uninstalled, err := Uninstall(tt.args.config, &tt.args.opts)
+			require.Equal(t, tt.wantUninstalled, uninstalled)
+			if (err != nil) != tt.wantErr {
 				t.Errorf("uninstall() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/kyma-project/manager-toolkit/installation/chart/base/resource"
+
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
@@ -63,12 +65,12 @@ var (
 				{
 					Type:   appsv1.DeploymentAvailable,
 					Status: corev1.ConditionTrue,
-					Reason: MinimumReplicasAvailable,
+					Reason: resource.MinimumReplicasAvailableReason,
 				},
 				{
 					Type:   appsv1.DeploymentProgressing,
 					Status: corev1.ConditionTrue,
-					Reason: NewRSAvailableReason,
+					Reason: resource.NewRSAvailableReason,
 				},
 			},
 		},
@@ -89,8 +91,10 @@ func Test_install_delete(t *testing.T) {
 		_ = cache.Set(context.Background(), testManifestKey,
 			ContextManifest{Manifest: fmt.Sprint(testCRD, separator, testDeploy)})
 		client := fake.NewClientBuilder().WithObjects(testDeployCR).WithObjects(testCRDObj).Build()
-		customFlags := map[string]interface{}{
-			"flag1": "val1",
+		opts := &InstallOpts{
+			CustomFlags: map[string]interface{}{
+				"flag1": "val1",
+			},
 		}
 		config := &Config{
 			Cache:    cache,
@@ -100,7 +104,7 @@ func Test_install_delete(t *testing.T) {
 			},
 			Log: zap.NewNop().Sugar(),
 		}
-		err := install(config, customFlags, fixManifestRenderFunc(""))
+		err := install(config, opts, fixManifestRenderFunc(""))
 		require.NoError(t, err)
 
 		deploymentList := appsv1.DeploymentList{}
@@ -186,7 +190,7 @@ func Test_install(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := Install(tt.args.config, tt.args.customFlags); (err != nil) != tt.wantErr {
+			if err := Install(tt.args.config, &InstallOpts{CustomFlags: tt.args.customFlags}); (err != nil) != tt.wantErr {
 				t.Errorf("install() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

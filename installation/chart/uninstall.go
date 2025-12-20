@@ -3,109 +3,99 @@ package chart
 import (
 	"fmt"
 
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/kyma-project/manager-toolkit/installation/chart/action"
+	"github.com/kyma-project/manager-toolkit/installation/chart/base/resource"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-type FilterFunc func(unstructured.Unstructured) bool
+type UninstallOpts struct {
+	// Predicate can be used to uninstall certain resources before others
+	// other resources will be uninstalled after these are done
+	UninstallFirst resource.Predicate
+
+	// PostActions to be executed after uninstalling each resource
+	// can be used for cleanup tasks
+	PostActions []action.PostUninstall
+}
 
 // Uninstall uninstalls all resources defined in the chart manifest stored in the cache
-func Uninstall(config *Config, filterFunc ...FilterFunc) error {
+func Uninstall(config *Config, opts *UninstallOpts) (bool, error) {
+	done, err := uninstall(config, opts)
+	if err != nil {
+		return done, err
+	}
+
+	if !done {
+		// not all resources are deleted yet
+		return done, nil
+	}
+
+	// all resources are deleted, remove the cache entry
+	return true, config.Cache.Delete(config.Ctx, config.CacheKey)
+}
+
+func uninstall(config *Config, opts *UninstallOpts) (bool, error) {
 	spec, err := config.Cache.Get(config.Ctx, config.CacheKey)
 	if err != nil {
-		return fmt.Errorf("could not render manifest from chart: %s", err.Error())
+		return false, fmt.Errorf("could not render manifest from chart: %s", err.Error())
 	}
 
-	objs, err := parseManifest(spec.Manifest)
+	manifestObjs, err := parseManifest(spec.Manifest)
 	if err != nil {
-		return fmt.Errorf("could not parse chart manifest: %s", err.Error())
+		return false, fmt.Errorf("could not parse chart manifest: %s", err.Error())
 	}
 
-	err = uninstallObjects(config, objs, filterFunc...)
-	if err != nil {
-		return err
+	firstToUninstall, objs := resource.SplitByPredicates(manifestObjs, opts.UninstallFirst)
+
+	// delete first to uninstall objs
+	done, err := deleteObjects(config, firstToUninstall)
+	if err != nil || !done {
+		return done, err
 	}
 
-	// TODO: implement post-delete hooks
+	// delete remaining objs
+	done, err = deleteObjects(config, objs)
+	if err != nil || !done {
+		return done, err
+	}
 
-	return config.Cache.Delete(config.Ctx, config.CacheKey)
+	// fire post uninstall actions for all objs
+	return firePostUninstallForObjs(opts, manifestObjs)
 }
 
-// UninstallResourcesByType uninstalls all resources of a specific type defined in the chart manifest stored in the cache
-func UninstallResourcesByType(config *Config, resourceType string, filterFunc ...FilterFunc) (error, bool) {
-	spec, err := config.Cache.Get(config.Ctx, config.CacheKey)
-	if err != nil {
-		return fmt.Errorf("could not render manifest from chart: %s", err.Error()), false
-	}
-
-	objs, err := parseManifest(spec.Manifest)
-	if err != nil {
-		return fmt.Errorf("could not parse chart manifest: %s", err.Error()), false
-	}
-
-	err2, done := uninstallResourcesByType(config, objs, resourceType, filterFunc...)
-	if err2 != nil {
-		return err2, false
-	}
-
-	return nil, done
-}
-
-func uninstallObjects(config *Config, objs []unstructured.Unstructured, filterFunc ...FilterFunc) error {
-	for i := range objs {
-		u := objs[i]
-		if !fitToFilters(u, filterFunc...) {
-			continue
-		}
-
-		config.Log.Debugf("deleting %s %s", u.GetKind(), u.GetName())
-		err := config.Cluster.Client.Delete(config.Ctx, &u)
-		if k8serrors.IsNotFound(err) {
-			config.Log.Debugf("deletion skipped for %s %s", u.GetKind(), u.GetName())
-			continue
-		}
-		if err != nil {
-			return fmt.Errorf("could not uninstall object %s/%s: %s", u.GetNamespace(), u.GetName(), err.Error())
-		}
-	}
-	return nil
-}
-
-func uninstallResourcesByType(config *Config, objs []unstructured.Unstructured, resourceType string, filterFunc ...FilterFunc) (error, bool) {
+func deleteObjects(config *Config, objs []unstructured.Unstructured) (bool, error) {
 	done := true
 	for i := range objs {
 		u := objs[i]
-		if !fitToFilters(u, filterFunc...) {
-			continue
-		}
-		if u.GetKind() != resourceType {
-			continue
-		}
 
-		config.Log.Debugf("deleting %s %s", u.GetKind(), u.GetName())
-		err := config.Cluster.Client.Delete(config.Ctx, &u)
-		if k8serrors.IsNotFound(err) {
-			config.Log.Debugf("deletion skipped for %s %s", u.GetKind(), u.GetName())
-			continue
-		}
+		objDone, err := resource.Delete(config.Ctx, config.Cluster.Client, config.Log, u)
 		if err != nil {
-			return fmt.Errorf("could not uninstall object %s/%s: %s", u.GetNamespace(), u.GetName(), err.Error()), false
+			return false, err
 		}
-		done = false
-	}
-	return nil, done
-}
 
-func WithoutCRDFilter(u unstructured.Unstructured) bool {
-	return !isCRD(u)
-}
-
-func fitToFilters(u unstructured.Unstructured, filterFunc ...FilterFunc) bool {
-	for _, fn := range filterFunc {
-		if !fn(u) {
-			return false
+		if !objDone {
+			done = false
 		}
 	}
 
-	return true
+	return done, nil
+}
+
+func firePostUninstallForObjs(opts *UninstallOpts, objs []unstructured.Unstructured) (bool, error) {
+	done := true
+	for i := range objs {
+		u := objs[i]
+
+		objDone, err := action.FireAllPostUninstall(opts.PostActions, u)
+		if err != nil {
+			return false, err
+		}
+
+		if !objDone {
+			done = false
+		}
+	}
+
+	return done, nil
 }
