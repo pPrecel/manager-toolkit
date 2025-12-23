@@ -3,8 +3,9 @@ package chart
 import (
 	"fmt"
 
+	"github.com/kyma-project/manager-toolkit/installation/base/resource"
+
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -47,7 +48,7 @@ func Verify(config *Config) (*VerificationResult, error) {
 	for i := range objs {
 		u := objs[i]
 
-		if u.GetKind() != "Deployment" {
+		if !resource.IsDeployment(u) {
 			continue
 		}
 
@@ -74,51 +75,14 @@ func verifyDeployment(config *Config, u unstructured.Unstructured) (string, erro
 		return "", err
 	}
 
-	if isDeploymentReady(deployment) {
+	if resource.IsDeploymentReady(deployment) {
 		return VerificationCompleted, nil
 	}
 
-	if hasDeploymentConditionTrueStatus(deployment.Status.Conditions, appsv1.DeploymentReplicaFailure) {
+	if resource.HasDeploymentConditionTrueStatus(deployment.Status.Conditions, appsv1.DeploymentReplicaFailure) {
 		return fmt.Sprintf("deployment %s/%s has replica failure: %s", u.GetNamespace(), u.GetName(),
-			getDeploymentCondition(deployment.Status.Conditions, appsv1.DeploymentReplicaFailure).Message), nil
+			resource.GetDeploymentCondition(deployment.Status.Conditions, appsv1.DeploymentReplicaFailure).Message), nil
 	}
 
 	return DeploymentVerificationProcessing, nil
-}
-
-const (
-	// NewRSAvailableReason is added in a deployment when its newest replica set is made available
-	// ie. the number of new pods that have passed readiness checks and run for at least minReadySeconds
-	// is at least the minimum available pods that need to run for the deployment.
-	NewRSAvailableReason = "NewReplicaSetAvailable"
-
-	// MinimumReplicasAvailable is added in a deployment when it has its minimum replicas required available.
-	MinimumReplicasAvailable = "MinimumReplicasAvailable"
-)
-
-func isDeploymentReady(deployment appsv1.Deployment) bool {
-	conditions := deployment.Status.Conditions
-	return hasDeploymentConditionTrueStatusWithReason(conditions, appsv1.DeploymentAvailable, MinimumReplicasAvailable) &&
-		hasDeploymentConditionTrueStatusWithReason(conditions, appsv1.DeploymentProgressing, NewRSAvailableReason) &&
-		deployment.Generation == deployment.Status.ObservedGeneration && // spec changes are observed
-		deployment.Status.UnavailableReplicas == 0 // all replicas are available
-}
-
-func hasDeploymentConditionTrueStatus(conditions []appsv1.DeploymentCondition, conditionType appsv1.DeploymentConditionType) bool {
-	condition := getDeploymentCondition(conditions, conditionType)
-	return condition.Status == corev1.ConditionTrue
-}
-
-func hasDeploymentConditionTrueStatusWithReason(conditions []appsv1.DeploymentCondition, conditionType appsv1.DeploymentConditionType, reason string) bool {
-	condition := getDeploymentCondition(conditions, conditionType)
-	return condition.Status == corev1.ConditionTrue && condition.Reason == reason
-}
-
-func getDeploymentCondition(conditions []appsv1.DeploymentCondition, conditionType appsv1.DeploymentConditionType) appsv1.DeploymentCondition {
-	for _, condition := range conditions {
-		if condition.Type == conditionType {
-			return condition
-		}
-	}
-	return appsv1.DeploymentCondition{}
 }

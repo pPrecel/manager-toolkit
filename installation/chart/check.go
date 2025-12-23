@@ -3,6 +3,8 @@ package chart
 import (
 	"fmt"
 
+	"github.com/kyma-project/manager-toolkit/installation/base/resource"
+
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -25,7 +27,7 @@ func CheckCRDOrphanResources(config *Config) error {
 
 	for _, obj := range objs {
 		// continue if obj is not crd
-		if !isCRD(obj) {
+		if !resource.IsCRD(obj) {
 			continue
 		}
 
@@ -59,10 +61,6 @@ func CheckCRDOrphanResources(config *Config) error {
 	}
 
 	return nil
-}
-
-func isCRD(u unstructured.Unstructured) bool {
-	return u.GroupVersionKind().GroupKind() == apiextensionsv1.Kind("CustomResourceDefinition")
 }
 
 func buildResourceListFromCRD(u unstructured.Unstructured) (unstructured.UnstructuredList, error) {
