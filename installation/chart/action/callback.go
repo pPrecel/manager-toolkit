@@ -34,7 +34,8 @@ func PostUninstallWithPredicate(postUninstallFunc PostUninstall, predicate resou
 		if predicate(u) {
 			return postUninstallFunc(u)
 		}
-		return false, nil
+		// if the predicate does not match, consider it done
+		return true, nil
 	}
 }
 
