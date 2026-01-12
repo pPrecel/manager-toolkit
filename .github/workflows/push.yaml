@@ -27,7 +27,7 @@ jobs:
         SKIP_TAG=$([ -z "$OTHER_CHANGES_THAN_DEPENDENCIES" ] && echo "true")
         echo "SKIP_TAG=${SKIP_TAG}" >> $GITHUB_OUTPUT
     - name: Create and push tag
-      if: steps.skip-check.outputs.SKIP_TAG != 'true'
+      if: steps.skip-check.outputs.SKIP_TAG == 'true'
       run: |
         COMMIT_HASH=$(git rev-parse --short HEAD)
         COMMIT_DATE=$(date -d "@$(git show --no-patch --format=%ct ${COMMIT_HASH})" +'%y%m%d.%H%M%S')
