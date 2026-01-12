@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+
 jobs:
   tag-commit:
     name: Create tag for commit
@@ -13,10 +14,23 @@ jobs:
       with:
         token: ${{ secrets.BOT_TOKEN }}
     
+    - name: Check if only self dependencies changed
+      id: skip-check
+      run: |
+        # Check for changes other than go.sum updates for self dependencies
+        # Elements:
+            # git diff -U0 -- . ":(exclude)*/go.sum" - exclude go.sum files from diff to focus on other files (like go.sum)
+            # -e '/^\(+\|-\)\s/!d' - keep only added/removed lines
+            # -e '/\tgithub.com\/kyma-project\/manager-toolkit/d' - remove lines that correspond to changes in go.sum for self dependencies
+        OTHER_CHANGES_THAN_DEPENDENCIES=$(git diff -U0 -- . ":(exclude)*/go.sum" | sed -e '/^\(+\|-\)\s/!d' -e '/\tgithub.com\/kyma-project\/manager-toolkit/d')
+        
+        SKIP_TAG=$([ -z "$OTHER_CHANGES_THAN_DEPENDENCIES" ] && echo "true")
+        echo "SKIP_TAG=${SKIP_TAG}" >> $GITHUB_OUTPUT
     - name: Create and push tag
+      if: steps.skip-check.outputs.SKIP_TAG != 'true'
       run: |
         COMMIT_HASH=$(git rev-parse --short HEAD)
-        COMMIT_DATE=$(date -d "$(git show --no-patch --format=%ct ${COMMIT_HASH})" +'%y%m%d.%H%M%S')
+        COMMIT_DATE=$(date -d "@$(git show --no-patch --format=%ct ${COMMIT_HASH})" +'%y%m%d.%H%M%S')
         TAG="v0.${COMMIT_DATE}-${COMMIT_HASH}"
         git tag -f $TAG
         git push origin $TAG
