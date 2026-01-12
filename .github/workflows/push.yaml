@@ -1,0 +1,22 @@
+name: push
+on:
+  push:
+    branches:
+      - main
+jobs:
+  tag-commit:
+    name: Create tag for commit
+    runs-on: ubuntu-latest
+
+    steps: 
+    - uses: actions/checkout@v6
+      with:
+        token: ${{ secrets.BOT_TOKEN }}
+    
+    - name: Create and push tag
+      run: |
+        COMMIT_HASH=$(git rev-parse --short HEAD)
+        COMMIT_DATE=$(date -d "$(git show --no-patch --format=%ct ${COMMIT_HASH})" +'%y%m%d.%H%M%S')
+        TAG="v0.${COMMIT_DATE}-${COMMIT_HASH}"
+        git tag -f $TAG
+        git push origin $TAG
