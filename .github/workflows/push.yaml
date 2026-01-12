@@ -15,6 +15,8 @@ jobs:
     
     - name: Create and push tag
       run: |
-        TAG="v0.$(date +'%y%m%d.%H%M%S')-$(git rev-parse --short HEAD)"
+        COMMIT_HASH=$(git rev-parse --short HEAD)
+        COMMIT_DATE=$(date -d "$(git show --no-patch --format=%ct ${COMMIT_HASH})" +'%y%m%d.%H%M%S')
+        TAG="v0.${COMMIT_DATE}-${COMMIT_HASH}"
         git tag -f $TAG
         git push origin $TAG
