@@ -12,6 +12,7 @@ jobs:
     steps: 
     - uses: actions/checkout@v6
       with:
+        fetch-depth: 2
         token: ${{ secrets.BOT_TOKEN }}
     
     - name: Check if only self dependencies changed
@@ -22,9 +23,12 @@ jobs:
             # git diff -U0 -- . ":(exclude)*/go.sum" - exclude go.sum files from diff to focus on other files (like go.sum)
             # -e '/^\(+\|-\)\s/!d' - keep only added/removed lines
             # -e '/\tgithub.com\/kyma-project\/manager-toolkit/d' - remove lines that correspond to changes in go.sum for self dependencies
-        OTHER_CHANGES_THAN_DEPENDENCIES=$(git diff -U0 -- . ":(exclude)*/go.sum" | sed -e '/^\(+\|-\)\s/!d' -e '/\tgithub.com\/kyma-project\/manager-toolkit/d')
+        OTHER_CHANGES_THAN_DEPENDENCIES="$(git diff -U0 HEAD^ HEAD -- . ':(exclude)*/go.sum' | grep '^[+-][^+-]' | sed -e '/\tgithub.com\/kyma-project\/manager-toolkit/d')"
+        echo -e "Other changes than dependencies:"
+        echo "${OTHER_CHANGES_THAN_DEPENDENCIES}"
         
-        SKIP_TAG=$([ -z "$OTHER_CHANGES_THAN_DEPENDENCIES" ] && echo "false" || echo "true")
+        SKIP_TAG=$([ -z "${OTHER_CHANGES_THAN_DEPENDENCIES}" ] && echo "true" || echo "false")
+        echo -e "Skip next steps: ${SKIP_TAG}"
         echo "SKIP_TAG=${SKIP_TAG}" >> $GITHUB_OUTPUT
     
     - name: Calculate tags
@@ -32,24 +36,30 @@ jobs:
       id: calculate-tag
       run: |
         # calculate base tag
-        COMMIT_HASH=$(git rev-parse --short HEAD)
+        COMMIT_HASH=$(git rev-parse --short ${{ github.sha }})
         COMMIT_DATE=$(date -d "@$(git show --no-patch --format=%ct ${COMMIT_HASH})" +'%y%m%d.%H%M%S')
         TAG_BASE="v0.${COMMIT_DATE}-${COMMIT_HASH}"
         TAGS="${TAG_BASE}"
 
         # find all affected packages
         PACKAGES="$(grep --include="*go.mod" -r "module github.com/kyma-project/manager-toolkit/" --include="*.mod" . | sed 's/.*manager-toolkit\///g')"
-        FILES_CHANGED=$(git diff HEAD^ HEAD --name-only)
+        echo -e "Packages detected:\n${PACKAGES}"
+
+        FILES_CHANGED="$(git diff HEAD^ HEAD --name-only)"
+        echo -e "Files changed:\n${FILES_CHANGED}"
+
         for dep in ${PACKAGES}; do
-            if [ -n "$(echo $FILES_CHANGED | sed '/^${dep}/!d')" ]; then
-                echo "Dependency content ${dep} changes detected"
+            CHANGED_FILES_FOR_DEP=$(echo "$FILES_CHANGED" | grep "^${dep}" || true)
+            if [ -n "${CHANGED_FILES_FOR_DEP}" ]; then
+                echo "Dependency content ${dep} changes detected:"
+                echo "${CHANGED_FILES_FOR_DEP}"
                 TAGS="${TAGS} ${dep}/${TAG_BASE}"
             else
                 echo "Dependency ${dep} no changes detected"
             fi
         done
 
-        echo "Tags: $TAGS"
+        echo "Tags: ${TAGS}"
         echo "TAGS=${TAGS}" >> $GITHUB_OUTPUT
         
     - name: Create and push tags
