@@ -39,8 +39,14 @@ jobs:
 
         # find all affected packages
         PACKAGES="$(grep --include="*go.mod" -r "module github.com/kyma-project/manager-toolkit/" --include="*.mod" . | sed 's/.*manager-toolkit\///g')"
+        FILES_CHANGED=$(git diff HEAD^ HEAD --name-only)
         for dep in ${PACKAGES}; do
-            TAGS="${TAGS} ${dep}/${TAG_BASE}"
+            if [ -n "$(echo $FILES_CHANGED | sed '/^${dep}/!d')" ]; then
+                echo "Dependency content ${dep} changes detected"
+                TAGS="${TAGS} ${dep}/${TAG_BASE}"
+            else
+                echo "Dependency ${dep} no changes detected"
+            fi
         done
 
         echo "Tags: $TAGS"
