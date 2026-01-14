@@ -65,7 +65,7 @@ jobs:
     - name: Create and push tags
       if: steps.skip-check.outputs.SKIP_TAG == 'false'
       run: |
-        for TAG in "${{ steps.calculate-tag.outputs.TAGS }}"; do
+        for TAG in ${{ steps.calculate-tag.outputs.TAGS }}; do
           echo "Creating and pushing tag: $TAG"
           git tag -f $TAG
           git push origin $TAG
