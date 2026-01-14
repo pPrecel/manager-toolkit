@@ -11,7 +11,7 @@ const (
 	messageFormat    = "DO NOT EDIT - This resource is managed by %s.\nAny modifications are discarded and the resource is reverted to the original state."
 )
 
-// AddDoNotEditDisclaimer adds a "do not edit" disclaimer annotation to the given unstructured Kubernetes object.
+// AddDoNotEditDisclaimer adds a "do not edit" disclaimer annotation to the given unstructured Kubernetes object
 func AddDoNotEditDisclaimer(managerName string, obj unstructured.Unstructured) unstructured.Unstructured {
 	annotations := obj.GetAnnotations()
 	if annotations == nil {
