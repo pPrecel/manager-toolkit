@@ -1,6 +1,11 @@
 name: 'Create k3d cluster'
 description: 'Action for creating single cluster'
 
+inputs:
+  restricted-registry-sa:
+    description: 'Service account with permissions to pull images from the restricted registry'
+    required: false
+
 runs:
   using: 'composite'
   steps:
@@ -8,6 +13,30 @@ runs:
       run: |
         curl -s https://raw.githubusercontent.com/k3d-io/k3d/v5.8.3/install.sh | bash
         k3d version
+      shell: bash
+
+    - name: Configure restricted registry access
+      if: ${{ inputs.restricted-registry-sa }}
+      run: |
+        echo "Configuring access to the restricted registry using Service Account"
+
+        REGISTRIES_PATH=$(mktemp -d)/registries.yaml
+
+        cat <<EOF >> ${REGISTRIES_PATH}
+        mirrors:
+          europe-docker.pkg.dev:
+            endpoint:
+              - https://europe-docker.pkg.dev/v2
+        configs:
+          europe-docker.pkg.dev:
+            auth:
+              username: _json_key
+              password: |
+                ${{ inputs.restricted-registry-sa }}
+        EOF
+
+        echo "CUSTOM_FLAGS='${{ env.CUSTOM_FLAGS }} --registry-config ${REGISTRIES_PATH}'" >> $GITHUB_ENV
+        
       shell: bash
 
     - name: Create k3d cluster
@@ -18,7 +47,7 @@ runs:
           --port 80:80@loadbalancer \
           --port 443:443@loadbalancer \
           --k3s-arg "--flannel-backend=none@server:*" \
-          --k3s-arg "--disable=traefik@server:0"
+          --k3s-arg "--disable=traefik@server:0" ${{ env.CUSTOM_FLAGS }}
       shell: bash
 
     - name: Install Calico CNI
