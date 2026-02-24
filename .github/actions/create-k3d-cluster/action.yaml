@@ -3,7 +3,7 @@ description: 'Action for creating single cluster'
 
 inputs:
   restricted-registry-sa:
-    description: 'Service account with permissions to pull images from the restricted registry'
+    description: 'Service Account (base64) with permissions to pull images from the restricted registry'
     required: false
 
 runs:
@@ -11,6 +11,7 @@ runs:
   steps:
     - name: Install k3d
       run: |
+        echo "Installing k3d..."
         curl -s https://raw.githubusercontent.com/k3d-io/k3d/v5.8.3/install.sh | bash
         k3d version
       shell: bash
@@ -18,7 +19,7 @@ runs:
     - name: Configure restricted registry access
       if: ${{ inputs.restricted-registry-sa }}
       run: |
-        echo "Configuring access to the restricted registry using Service Account"
+        echo "Configuring access to the restricted registry using Service Account (base64)..."
 
         REGISTRIES_PATH=$(mktemp -d)/registries.yaml
 
@@ -30,7 +31,7 @@ runs:
         configs:
           europe-docker.pkg.dev:
             auth:
-              username: _json_key
+              username: _json_key_base64
               password: |
                 ${{ inputs.restricted-registry-sa }}
         EOF
@@ -41,6 +42,7 @@ runs:
 
     - name: Create k3d cluster
       run: |
+        echo "Creating k3d cluster..."
         k3d cluster create kyma \
           --agents 1 \
           --image rancher/k3s:v1.34.3-k3s1 \
@@ -52,6 +54,7 @@ runs:
 
     - name: Install Calico CNI
       run: |
+        echo "Installing Calico CNI..."
         kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/operator-crds.yaml
         kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/tigera-operator.yaml
         kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/custom-resources.yaml
