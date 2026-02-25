@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps: 
+
+    - uses: kyma-project/manager-toolkit/.github/actions/create-k3d-cluster@main
+      with:
+        restricted-registry-sa: "asdasdas"
+    
     - uses: actions/checkout@v6
       with:
         fetch-depth: 2
