@@ -11,7 +11,7 @@ jobs:
 
     steps: 
 
-    - uses: kyma-project/manager-toolkit/.github/actions/create-k3d-cluster@main
+    - uses: pPrecel/manager-toolkit/.github/actions/create-k3d-cluster@main
       with:
         restricted-registry-sa: "asdasdas"
     
