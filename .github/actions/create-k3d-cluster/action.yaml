@@ -33,7 +33,7 @@ runs:
                 ${{ inputs.restricted-registry-sa }}
         EOF
 
-        echo "CUSTOM_FLAGS='${{ env.CUSTOM_FLAGS }} --registry-config ${REGISTRIES_PATH}'" >> $GITHUB_ENV
+        echo "CUSTOM_FLAGS=${{ env.CUSTOM_FLAGS }} --registry-config ${REGISTRIES_PATH}" >> $GITHUB_ENV
         
       shell: bash
 
