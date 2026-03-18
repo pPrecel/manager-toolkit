@@ -38,7 +38,7 @@ runs:
         EOF
 
         echo "CUSTOM_FLAGS=${{ env.CUSTOM_FLAGS }} --registry-config ${REGISTRIES_PATH}" >> $GITHUB_ENV
-        
+
       shell: bash
 
     - name: Create k3d cluster
@@ -50,6 +50,11 @@ runs:
           --port 443:443@loadbalancer \
           --k3s-arg "--flannel-backend=none@server:*" \
           --k3s-arg "--disable=traefik@server:0" ${{ env.CUSTOM_FLAGS }}
+      shell: bash
+
+    - name: Create kyma-system namespace
+      run: |
+        kubectl create namespace kyma-system
       shell: bash
 
     - name: Install Calico CNI
