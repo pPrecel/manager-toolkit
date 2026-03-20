@@ -1,0 +1,33 @@
+name: 'Configure kubeconfig with ClusterRole'
+description: 'Adds a named context for the specified ClusterRole to the pipeline kubeconfig and switches to it. Always uses the admin context to apply RBAC.'
+
+inputs:
+  clusterrole:
+    description: 'ClusterRole to bind to the pipeline ServiceAccount. The context will be named after this role (e.g. edit, view, cluster-admin).'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure pipeline kubeconfig with ClusterRole
+      run: |
+        # Admin context is always k3d-kyma, set by the create-k3d-cluster action.
+        ADMIN_CONTEXT="k3d-kyma"
+        ROLE="${{ inputs.clusterrole }}"
+
+        # Use the admin context for all RBAC operations.
+        kubectl --context="${ADMIN_CONTEXT}" create serviceaccount "${ROLE}" -n kube-system --dry-run=client -o yaml \
+          | kubectl --context="${ADMIN_CONTEXT}" apply -f -
+
+        kubectl --context="${ADMIN_CONTEXT}" create clusterrolebinding "${ROLE}" \
+          --clusterrole="${ROLE}" \
+          --serviceaccount="kube-system:${ROLE}" \
+          --dry-run=client -o yaml \
+          | kubectl --context="${ADMIN_CONTEXT}" apply -f -
+
+        TOKEN=$(kubectl --context="${ADMIN_CONTEXT}" create token "${ROLE}" -n kube-system --duration=24h)
+        echo "::add-mask::$TOKEN"
+        kubectl config set-credentials "${ROLE}" --token="${TOKEN}"
+        kubectl config set-context "${ROLE}" --cluster="k3d-kyma" --user="${ROLE}"
+        kubectl config use-context "${ROLE}"
+      shell: bash
