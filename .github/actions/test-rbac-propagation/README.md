@@ -11,26 +11,26 @@ It reads a YAML config file that declares which rules each role **must** contain
 Kubernetes aggregates RBAC rules upward through the hierarchy `view ⊂ edit ⊂ admin`.  
 The action models this automatically:
 
-| ClusterRole checked | Rules evaluated |
-|---------------------|-----------------|
-| `view`              | `view.rules` |
-| `edit`              | `edit.rules` + `view.rules` |
+| ClusterRole checked | Rules evaluated                             |
+| ------------------- | ------------------------------------------- |
+| `view`              | `view.rules`                                |
+| `edit`              | `edit.rules` + `view.rules`                 |
 | `admin`             | `admin.rules` + `edit.rules` + `view.rules` |
 
 `forbidden` entries are checked **per-role only** — they do **not** inherit upward. The step fails if any forbidden rule is found in that role.
 
 ## Prerequisites
 
-| Requirement | Details |
-|-------------|---------|
-| **Go** | Must be available in `PATH`. Use [`kyma-project/manager-toolkit/.github/actions/setup-go`](../setup-go) before this action. |
+| Requirement    | Details                                                                                                                            |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Go**         | Must be available in `PATH`. Use [`kyma-project/manager-toolkit/.github/actions/setup-go`](../setup-go) before this action.        |
 | **kubeconfig** | A valid kubeconfig pointing to the target cluster must be present (e.g. set via `KUBECONFIG` env var or default `~/.kube/config`). |
 
 ## Inputs
 
-| Input | Required | Description |
-|-------|----------|-------------|
-| `config` | ✅ | Path to the RBAC config YAML file (see format below). |
+| Input    | Required | Description                                           |
+| -------- | -------- | ----------------------------------------------------- |
+| `config` | Yes      | Path to the RBAC config YAML file (see format below). |
 
 ## Config file format
 
@@ -83,6 +83,7 @@ view:
 ```
 
 Each section (`admin`, `edit`, `view`) accepts:
+
 - **`rules`** – permissions that **must** be present in the ClusterRole (after inheritance is applied).
 - **`forbidden`** – permissions that **must not** be present in that specific ClusterRole (no inheritance). The step fails if any are found.
 
